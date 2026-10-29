@@ -3,7 +3,7 @@
 Программа следит за ценами на товары в интернет-магазинах и сохраняет историю цен.
 Пользователь добавляет ссылку на товар и порог цены, программа проверяет текущую цену.
 
-Магазины: Ozon, Яндекс Маркет, Kari.
+Магазины: Читай-город, Яндекс Маркет, Kari.
 
 ## Что сделано
 
@@ -17,14 +17,12 @@
 ```
 pip install -r requirements.txt
 
-python main.py add "https://www.ozon.ru/product/..." --threshold 1500
+python main.py add "https://www.chitai-gorod.ru/" --threshold 1500
 python main.py list
 python main.py check
 python main.py history 1
 python main.py remove 1
 ```
-
-База данных создается сама при первом запуске в файле `prices.db` рядом с `main.py`.
 
 ## Файлы
 

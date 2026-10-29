@@ -15,9 +15,9 @@ session = requests.Session()
 session.headers.update(HEADERS)
 
 
-def get_page(url, params=None):
+def get_page(url):
     try:
-        resp = session.get(url, params=params, timeout=TIMEOUT)
+        resp = session.get(url, timeout=TIMEOUT)
     except requests.RequestException as e:
         raise FetchError(f"не удалось подключиться ({e.__class__.__name__})")
 
@@ -30,12 +30,3 @@ def get_page(url, params=None):
 
 def get_html(url):
     return get_page(url).text
-
-
-def get_json(url, params=None):
-    resp = get_page(url, params)
-    try:
-        return resp.json()
-    except ValueError:
-        # обычно это значит, что вместо данных показали капчу
-        raise FetchError("сайт вернул не json")

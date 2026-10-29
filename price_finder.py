@@ -61,7 +61,7 @@ def find_price(data):
             for item in node:
                 walk(item)
         elif isinstance(node, str) and node.strip()[:1] in ("{", "["):
-            # у озона внутри json бывают строки, в которых тоже json
+            # бывает, что внутри json лежит строка, в которой тоже json
             try:
                 walk(json.loads(node))
             except ValueError:
@@ -101,13 +101,22 @@ def find_title(data):
     return None
 
 
+def is_product(item):
+    """Это описание товара по schema.org? Книги часто размечают типом Book."""
+    if not isinstance(item, dict):
+        return False
+    kind = item.get("@type")
+    kinds = kind if isinstance(kind, list) else [kind]
+    return "Product" in kinds or "Book" in kinds
+
+
 SCRIPT_RE = re.compile(r"<script([^>]*)>(.*?)</script>", re.S | re.I)
 STATE_RE = re.compile(r"window\.__(INITIAL_STATE|PRELOADED_STATE|INITIAL_DATA)__\s*=\s*")
 
 
 def json_from_html(html):
     """Достает из страницы куски json, в которых может быть описан товар.
-    Сначала идет разметка schema.org с типом Product, потом все остальное."""
+    Сначала идет разметка schema.org с товаром, потом все остальное."""
     products = []
     other = []
     decoder = json.JSONDecoder()
@@ -127,7 +136,7 @@ def json_from_html(html):
             if isinstance(data, dict) and "@graph" in data:
                 items = data["@graph"]
             for item in items:
-                if isinstance(item, dict) and item.get("@type") == "Product":
+                if is_product(item):
                     products.append(item)
                 else:
                     other.append(item)
