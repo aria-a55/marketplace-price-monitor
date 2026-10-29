@@ -1,2 +1,45 @@
-# marketplace-price-monitor
-Price monitoring for online stores: scrapes prices, stores history, sends threshold alerts via Telegram and answers “buy now or wait?” with statistics.
+# Мониторинг цен на маркетплейсах
+
+Программа следит за ценами на товары в интернет-магазинах и сохраняет историю цен.
+Пользователь добавляет ссылку на товар и порог цены, программа проверяет текущую цену.
+
+Магазины: Ozon, Яндекс Маркет, Kari.
+
+## Что сделано
+
+- база данных SQLite: товары и история цен;
+- поиск цены в json любой вложенности (один код для всех магазинов);
+- общий класс парсера и парсеры трех магазинов;
+- команды для работы из консоли.
+
+## Запуск
+
+```
+pip install -r requirements.txt
+
+python main.py add "https://www.ozon.ru/product/..." --threshold 1500
+python main.py list
+python main.py check
+python main.py history 1
+python main.py remove 1
+```
+
+База данных создается сама при первом запуске в файле `prices.db` рядом с `main.py`.
+
+## Файлы
+
+```
+main.py           команды и проверка цен
+config.py         настройки
+db.py             работа с базой данных
+http_client.py    скачивание страниц
+price_finder.py   поиск цены и названия в json, json из html
+parsers/          парсеры магазинов (base.py - общий класс)
+```
+
+## Дальше
+
+- обработка блокировок (403, 429, капча);
+- проверка цен по расписанию;
+- Telegram-бот с уведомлениями;
+- графики и отметка распродаж.
