@@ -28,7 +28,7 @@ def to_kopecks(value):
     elif isinstance(value, str):
         # строки вида "1 299 ₽" или "1 299,90 руб."
         text = value.lower()
-        for junk in ["₽", "руб.", "руб", "\xa0", " ", " ", " "]:
+        for junk in ["₽", "руб.", "руб", "\xa0", "\u2009", "\u202f", " "]:
             text = text.replace(junk, "")
         text = text.replace(",", ".")
         if not re.fullmatch(r"\d+(\.\d{1,2})?", text):

@@ -63,6 +63,12 @@ def add_product(conn, url, store, external_id, threshold_kop, chat_id=0):
     return cur.lastrowid
 
 
+def find_product(conn, url, chat_id=0):
+    row = conn.execute("SELECT id FROM products WHERE url = ? AND chat_id = ?",
+                       (url, chat_id)).fetchone()
+    return row["id"] if row else None
+
+
 def get_products(conn):
     return conn.execute("SELECT * FROM products WHERE is_active = 1 ORDER BY id").fetchall()
 

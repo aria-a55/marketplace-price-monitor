@@ -5,10 +5,11 @@ from parsers.base import BaseParser
 
 class YandexMarketParser(BaseParser):
     # цену берем из разметки schema.org на странице товара, это делает общий парсер.
-    # маркет часто показывает капчу, с этим разберемся на следующем этапе
+    # обычные запросы маркет часто встречает капчей, поэтому открываем в браузере
     name = "yandex_market"
     title = "Яндекс Маркет"
     domains = ["market.yandex.ru"]
+    use_browser = True
 
     def get_product_id(self, url):
         # бывают ссылки /product--название/123 и /card/название/123

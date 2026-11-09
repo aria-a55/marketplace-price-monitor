@@ -4,6 +4,7 @@
     python main.py add <ссылка> --threshold 1500   добавить товар
     python main.py list                            список товаров
     python main.py check                           проверить цены
+    python main.py agent <ссылка>                   открыть ссылку и проверить через ИИ-агента
     python main.py history <id>                    история цен товара
     python main.py remove <id>                     перестать следить за товаром
 """
@@ -11,6 +12,7 @@
 import argparse
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+import browser
 import db
 from http_client import FetchError, NotFoundError
 from parsers import UnknownStore, find_parser, parser_by_name
@@ -99,9 +101,12 @@ def failed(conn, pid, status, error):
 def check_all(conn):
     products = db.get_products(conn)
     ok = 0
-    for product in products:
-        if check_product(conn, product) == "ok":
-            ok += 1
+    try:
+        for product in products:
+            if check_product(conn, product) == "ok":
+                ok += 1
+    finally:
+        browser.close()  # если браузер открывался, закрываем его в конце
     print(f"Проверено {len(products)}, успешно {ok}")
 
 
@@ -115,6 +120,10 @@ def main():
 
     commands.add_parser("list", help="список товаров")
     commands.add_parser("check", help="проверить цены")
+
+    cmd_agent = commands.add_parser("agent", help="открыть ссылку в браузере и проверить товар с помощью ИИ")
+    cmd_agent.add_argument("url", help="ссылка на товар")
+    cmd_agent.add_argument("--threshold", type=rub_to_kop, help="порог цены в рублях")
 
     cmd_history = commands.add_parser("history", help="история цен товара")
     cmd_history.add_argument("id", type=int)
@@ -131,6 +140,12 @@ def main():
         show_list(conn)
     elif args.command == "check":
         check_all(conn)
+    elif args.command == "agent":
+        from agent import run_agent
+        try:
+            print(run_agent(conn, clean_url(args.url), args.threshold))
+        finally:
+            browser.close()
     elif args.command == "history":
         show_history(conn, args.id)
     elif args.command == "remove":

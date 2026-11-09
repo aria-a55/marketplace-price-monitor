@@ -221,3 +221,6 @@ __marimo__/
 
 # база данных
 *.db
+
+# профиль браузера (cookies)
+browser_profile/

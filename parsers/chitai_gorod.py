@@ -1,6 +1,5 @@
 import re
 
-from http_client import get_html
 from parsers.base import BaseParser, PriceNotFound
 from price_finder import is_product, json_from_html
 
@@ -15,10 +14,9 @@ class ChitaiGorodParser(BaseParser):
     name = "chitai_gorod"
     title = "Читай-город"
     domains = ["chitai-gorod.ru"]
+    use_browser = True   # обычному запросу сайт отдает страницу без данных о товаре
 
-    def load(self, url):
-        html = get_html(url)
-
+    def parse(self, html):
         # 1) разметка schema.org в json (ld+json).
         # остальной json на странице не смотрим: там под ключом price
         # бывают служебные номера, а не цена
