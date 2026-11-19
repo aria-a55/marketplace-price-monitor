@@ -3,7 +3,7 @@
 
 Страница открывается программой до обращения к Qwen:
 1. определяем магазин;
-2. открываем ссылку через рекомендуемый способ (для Ozon — видимый браузер);
+2. открываем ссылку через рекомендуемый для магазина способ;
 3. пробуем извлечь цену обычным парсером;
 4. если парсер не справился, передаем текст страницы Qwen;
 5. проверяем цену и только после этого сохраняем ее.
@@ -63,19 +63,23 @@ TOOLS = [
 
 
 class PriceAgent:
-    def __init__(self, conn, url, threshold_kop=None):
+    def __init__(self, conn, url, threshold_kop=None, chat_id=0):
         self.conn = conn
         self.url = url
         self.threshold = threshold_kop
+        self.chat_id = chat_id        # пользователь телеграма (0 - консоль)
+        self.steps = []               # что делал агент - показываем пользователю в боте
+        self.ai_failed = False        # True, если модель недоступна
         self.parser = None
         self.html = None
         self.text = ""
         self.code_price = None
         self.validated = None
         self.saved = None
-        self.product_id = db.find_product(conn, url)
+        self.product_id = db.find_product(conn, url, chat_id)
 
     def detect_store(self):
+        self.steps.append("detect_store")
         try:
             self.parser = find_parser(self.url)
         except UnknownStore as exc:
@@ -88,6 +92,7 @@ class PriceAgent:
         }
 
     def fetch_page(self, method="http"):
+        self.steps.append(f"fetch_page({method})")
         if not self.parser:
             return {"ok": False, "error": "сначала нужно определить магазин"}
         if method == "browser" and not ALLOW_BROWSER:
@@ -110,6 +115,7 @@ class PriceAgent:
         }
 
     def extract_price(self):
+        self.steps.append("extract_price")
         if self.html is None:
             return {"found": False, "error": "страница еще не загружена"}
         try:
@@ -120,6 +126,7 @@ class PriceAgent:
         return {"found": True, "price": price / 100, "title": title}
 
     def read_page_text(self, part=1):
+        self.steps.append("read_page_text")
         if not self.text:
             return {"error": "текст страницы пуст"}
         total = (len(self.text) + TEXT_PART - 1) // TEXT_PART
@@ -132,6 +139,7 @@ class PriceAgent:
         }
 
     def validate_price(self, price):
+        self.steps.append("validate_price")
         kop = to_kopecks(price)
         if not kop:
             return {"valid": False, "reason": "это не похоже на цену"}
@@ -155,13 +163,14 @@ class PriceAgent:
         return {"valid": True, "price_text": format_price(kop)}
 
     def save_price(self, price, title=None):
+        self.steps.append("save_price")
         kop = to_kopecks(price)
         if kop is None or kop != self.validated:
             return {"saved": False, "error": "сначала цена должна пройти validate_price"}
         if self.product_id is None:
             self.product_id = db.add_product(
                 self.conn, self.url, self.parser.name,
-                self.parser.get_product_id(self.url), self.threshold,
+                self.parser.get_product_id(self.url), self.threshold, self.chat_id,
             )
         db.save_price(self.conn, self.product_id, kop)
         db.set_status(
@@ -240,7 +249,11 @@ class PriceAgent:
             messages.append(reply)
             calls = reply.get("tool_calls") or []
             if not calls:
+                if self.saved:
+                    # Qwen уже сохранил цену через save_price и просто пишет итог
+                    return reply.get("content") or f"Qwen нашел цену: {format_price(self.saved)}."
                 # Если Qwen не вызвал инструменты, пробуем обычный JSON-режим как резерв.
+                self.steps.append("ask_ai")
                 found = ask_ai(self.html)
                 if found:
                     price_kop, title = found
@@ -302,6 +315,7 @@ class PriceAgent:
             return self.finish(answer)
 
         except AIUnavailable as exc:
+            self.ai_failed = True
             return self.finish(str(exc))
         finally:
             # Если использовался управляемый браузер, корректно отключаемся.

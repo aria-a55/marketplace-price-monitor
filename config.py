@@ -42,3 +42,17 @@ USE_AI = True
 # ИИ-агент (команда agent)
 ALLOW_BROWSER = True      # можно ли агенту открывать браузер
 AGENT_MAX_STEPS = 12      # сколько раз агент может вызвать инструменты, чтобы не зациклиться
+
+# Telegram-бот (bot.py)
+# токен выдает @BotFather. в код его не пишем: кладем в файл bot_token.txt рядом с main.py
+# (файл есть в .gitignore и на GitHub не попадет) или в переменную окружения TELEGRAM_TOKEN
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+_token_file = os.path.join(BASE_DIR, "bot_token.txt")
+if not TELEGRAM_TOKEN and os.path.exists(_token_file):
+    with open(_token_file, encoding="utf-8") as f:
+        TELEGRAM_TOKEN = f.read().strip()
+# если api.telegram.org не открывается, можно указать прокси только для бота,
+# например "socks5://127.0.0.1:10808". сайты магазинов при этом открываются напрямую
+TELEGRAM_PROXY = ""
+# как часто бот сам проверяет все цены, в минутах
+CHECK_INTERVAL_MINUTES = 60

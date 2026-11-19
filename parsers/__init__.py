@@ -1,10 +1,9 @@
 from parsers.chitai_gorod import ChitaiGorodParser
 from parsers.kari import KariParser
-from parsers.ozon import OzonParser
 from parsers.yandex_market import YandexMarketParser
 
 # чтобы добавить магазин, пишем для него класс и дописываем сюда
-PARSERS = [OzonParser, ChitaiGorodParser, YandexMarketParser, KariParser]
+PARSERS = [ChitaiGorodParser, YandexMarketParser, KariParser]
 
 
 class UnknownStore(Exception):

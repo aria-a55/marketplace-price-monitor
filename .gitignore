@@ -224,3 +224,6 @@ __marimo__/
 
 # профиль браузера (cookies)
 browser_profile/
+
+# токен телеграм-бота
+bot_token.txt

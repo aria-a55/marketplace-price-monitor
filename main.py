@@ -87,15 +87,17 @@ def check_product(conn, product):
 
     db.save_price(conn, pid, price)
     db.set_status(conn, pid, "ok", title)
-    print(f"#{pid}  {format_price(price)}  {title or ''}")
-    return "ok"
+    info = f"{format_price(price)}  {title or ''}"
+    print(f"#{pid}  {info}")
+    return "ok", info
 
 
 def failed(conn, pid, status, error):
     # ошибка одного товара не должна останавливать проверку остальных
-    print(f"#{pid}  ошибка: {error}")
+    info = f"ошибка: {error}"
+    print(f"#{pid}  {info}")
     db.set_status(conn, pid, status)
-    return status
+    return status, info
 
 
 def check_all(conn):
@@ -103,7 +105,8 @@ def check_all(conn):
     ok = 0
     try:
         for product in products:
-            if check_product(conn, product) == "ok":
+            status, _ = check_product(conn, product)
+            if status == "ok":
                 ok += 1
     finally:
         browser.close()  # если браузер открывался, закрываем его в конце

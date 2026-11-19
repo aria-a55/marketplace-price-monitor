@@ -46,12 +46,12 @@ def connect():
 
 
 def add_product(conn, url, store, external_id, threshold_kop, chat_id=0):
-    # если такой товар уже есть, просто обновляем порог и снова включаем
+    # если такой товар уже есть, снова включаем его, а порог меняем, только если он указан
     row = conn.execute("SELECT id FROM products WHERE url = ? AND chat_id = ?",
                        (url, chat_id)).fetchone()
     if row:
-        conn.execute("UPDATE products SET threshold_kop = ?, is_active = 1 WHERE id = ?",
-                     (threshold_kop, row["id"]))
+        conn.execute("UPDATE products SET threshold_kop = COALESCE(?, threshold_kop), is_active = 1 "
+                     "WHERE id = ?", (threshold_kop, row["id"]))
         conn.commit()
         return row["id"]
 
@@ -69,8 +69,21 @@ def find_product(conn, url, chat_id=0):
     return row["id"] if row else None
 
 
-def get_products(conn):
-    return conn.execute("SELECT * FROM products WHERE is_active = 1 ORDER BY id").fetchall()
+def get_products(conn, chat_id=None):
+    # chat_id=None - товары всех пользователей, иначе только товары этого пользователя
+    if chat_id is None:
+        return conn.execute("SELECT * FROM products WHERE is_active = 1 ORDER BY id").fetchall()
+    return conn.execute("SELECT * FROM products WHERE is_active = 1 AND chat_id = ? ORDER BY id",
+                        (chat_id,)).fetchall()
+
+
+def get_product(conn, product_id):
+    return conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
+
+
+def set_threshold(conn, product_id, threshold_kop):
+    conn.execute("UPDATE products SET threshold_kop = ? WHERE id = ?", (threshold_kop, product_id))
+    conn.commit()
 
 
 def remove_product(conn, product_id):
