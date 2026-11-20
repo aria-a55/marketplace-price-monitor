@@ -1,15 +1,4 @@
-"""
-Telegram-бот для мониторинга цен.
-
-Пользователь присылает ссылку на товар (можно сразу с порогом цены),
-ИИ-агент узнает цену и сохраняет ее в базу. Раз в CHECK_INTERVAL_MINUTES минут
-бот сам проверяет все товары и пишет, если цена опустилась ниже порога.
-
-Все проверки выполняются по очереди в одном отдельном потоке (worker):
-браузер и база данных не любят, когда с ними работают из нескольких потоков.
-
-Запуск: python bot.py
-"""
+"""Telegram-бот. Запуск: python bot.py."""
 
 import queue
 import re
@@ -28,12 +17,14 @@ from config import CHECK_INTERVAL_MINUTES, TELEGRAM_PROXY, TELEGRAM_TOKEN
 from main import check_product, clean_url
 from parsers import UnknownStore, find_parser
 from price_finder import format_price
+from price_alerts import price_alert
 
 HELP = """Я слежу за ценами в интернет-магазинах: Читай-город, Яндекс Маркет, Kari.
 
 Пришлите ссылку на товар, можно сразу с порогом цены:
 https://www.chitai-gorod.ru/product/... 500
 Когда цена опустится ниже порога, я напишу.
+Также сообщу о возможной распродаже — падении цены на 15% и более с прошлой проверки.
 
 Команды:
 /list - мои товары
@@ -52,9 +43,9 @@ if not TELEGRAM_TOKEN:
 if TELEGRAM_PROXY:
     apihelper.proxy = {"https": TELEGRAM_PROXY}
 
-# threaded=False - сообщения обрабатываются по одному, так проще и надежнее
+# Playwright работает в одном потоке worker.
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
-jobs = queue.Queue()   # задачи для потока, который открывает сайты
+jobs = queue.Queue()
 
 
 def send(chat_id, text):
@@ -195,59 +186,61 @@ def on_text(message):
 
 def run_agent_job(conn, chat_id, url, threshold):
     product_id = db.find_product(conn, url, chat_id)
+    before = db.get_last_price(conn, product_id) if product_id else None
     if product_id and threshold:
         db.set_threshold(conn, product_id, threshold)
 
     agent = PriceAgent(conn, url, threshold, chat_id)
     text = agent.run()
-    if agent.steps:
-        text += "\n\nШаги агента: " + " -> ".join(agent.steps)
-
+    saved = agent.saved is not None
     if agent.ai_failed:
-        # модель недоступна - проверяем товар обычным кодом, без агента
         parser = find_parser(url)
         product_id = db.add_product(conn, url, parser.name, parser.get_product_id(url), threshold, chat_id)
-        _, info = check_product(conn, db.get_product(conn, product_id))
+        status, info = check_product(conn, db.get_product(conn, product_id))
+        saved = status == "ok"
         text = f"ИИ сейчас недоступен, проверил обычным способом.\n#{product_id}  {info}"
         agent.product_id = product_id
 
-    if agent.product_id:
-        product = db.get_product(conn, agent.product_id)
-        price = db.get_last_price(conn, product["id"])
-        if product["threshold_kop"] and price and price <= product["threshold_kop"]:
-            text += f"\n\nЦена уже ниже вашего порога ({format_price(product['threshold_kop'])})!"
     send(chat_id, text)
+    if saved:
+        notify_price_change(conn, agent.product_id, before)
+
+
+def notify_price_change(conn, product_id, before):
+    product = db.get_product(conn, product_id)
+    if not product["chat_id"]:
+        return
+    after = db.get_last_price(conn, product_id)
+    text = price_alert(product, before, after)
+    if text:
+        send(product["chat_id"], text)
 
 
 def check_products(conn, chat_id=None):
-    """chat_id=None - плановая проверка всех товаров: пишем только о снижении цены.
-    Если chat_id задан, пользователь сам попросил /check - отправляем ему отчет."""
+    """Проверяет товары и отправляет отчёт при ручном запросе."""
     report = []
     for product in db.get_products(conn, chat_id):
         before = db.get_last_price(conn, product["id"])
         status, info = check_product(conn, product)
         report.append(f"#{product['id']}  {info}")
 
-        after = db.get_last_price(conn, product["id"])
-        limit = product["threshold_kop"]
-        # пишем, только когда цена перешла порог сверху вниз, а не при каждой проверке
-        if status == "ok" and limit and product["chat_id"] and after <= limit \
-                and (before is None or before > limit):
-            title = db.get_product(conn, product["id"])["title"] or ""   # название могло появиться только сейчас
-            send(product["chat_id"], f"Цена снизилась до {format_price(after)} "
-                                     f"(ваш порог {format_price(limit)})\n{title}\n{product['url']}")
+        if status == "ok":
+            notify_price_change(conn, product["id"], before)
     if chat_id is not None:
         send(chat_id, "\n".join(report) or "Вы пока не следите ни за одним товаром.")
 
 
 def worker():
     conn = db.connect()
-    next_check = time.time() + CHECK_INTERVAL_MINUTES * 60
+    next_check = time.monotonic() + CHECK_INTERVAL_MINUTES * 60
     while True:
-        try:
-            job = jobs.get(timeout=max(1, next_check - time.time()))
-        except queue.Empty:
+        if time.monotonic() >= next_check:
             job = ("check_all",)
+        else:
+            try:
+                job = jobs.get(timeout=max(0, next_check - time.monotonic()))
+            except queue.Empty:
+                job = ("check_all",)
 
         try:
             if job[0] == "agent":
@@ -257,13 +250,14 @@ def worker():
             elif job[0] == "check_all":
                 print("Плановая проверка цен")
                 check_products(conn)
-                next_check = time.time() + CHECK_INTERVAL_MINUTES * 60
         except Exception:
             # ошибка в одной задаче не должна останавливать бота
             traceback.print_exc()
             if job[0] != "check_all":
                 send(job[1], "Что-то пошло не так, попробуйте еще раз позже.")
         finally:
+            if job[0] == "check_all":
+                next_check = time.monotonic() + CHECK_INTERVAL_MINUTES * 60
             browser.close()
 
 

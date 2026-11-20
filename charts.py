@@ -7,6 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 
 from price_finder import format_price
+from price_alerts import is_sale
 
 
 def build_price_chart(history, threshold_kop=None):
@@ -19,10 +20,18 @@ def build_price_chart(history, threshold_kop=None):
     axes = figure.subplots()
     axes.plot(dates, prices, color="#1565c0", linewidth=2, marker="o",
               markersize=4 if len(prices) <= 50 else 0, label="Цена")
+    sale_indexes = [
+        index for index in range(1, len(history))
+        if is_sale(history[index - 1]["price_kop"], history[index]["price_kop"])
+    ]
+    if sale_indexes:
+        axes.scatter([dates[index] for index in sale_indexes],
+                     [prices[index] for index in sale_indexes],
+                     color="#c62828", zorder=3, label="Снижение от 15%")
     if threshold_kop is not None:
         axes.axhline(threshold_kop / 100, color="#b44d18", linestyle="--",
                      label=f"Порог: {format_price(threshold_kop)}")
-        axes.legend()
+    axes.legend()
 
     locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
     axes.xaxis.set_major_locator(locator)

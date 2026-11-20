@@ -1,13 +1,4 @@
-"""
-ИИ-агент мониторинга цен.
-
-Страница открывается программой до обращения к Qwen:
-1. определяем магазин;
-2. открываем ссылку через рекомендуемый для магазина способ;
-3. пробуем извлечь цену обычным парсером;
-4. если парсер не справился, передаем текст страницы Qwen;
-5. проверяем цену и только после этого сохраняем ее.
-"""
+"""Получение и проверка цены с помощью парсера и Qwen."""
 
 import json
 import re
@@ -67,9 +58,9 @@ class PriceAgent:
         self.conn = conn
         self.url = url
         self.threshold = threshold_kop
-        self.chat_id = chat_id        # пользователь телеграма (0 - консоль)
-        self.steps = []               # что делал агент - показываем пользователю в боте
-        self.ai_failed = False        # True, если модель недоступна
+        self.chat_id = chat_id
+        self.steps = []
+        self.ai_failed = False
         self.parser = None
         self.html = None
         self.text = ""
@@ -210,8 +201,7 @@ class PriceAgent:
         if preferred == "browser":
             if not ALLOW_BROWSER:
                 return {"ok": False, "error": "для этого магазина нужен браузер, но ALLOW_BROWSER=False"}
-            result = self.fetch_page("browser")
-            return result
+            return self.fetch_page("browser")
 
         # Для магазинов с обычной загрузкой сначала используем HTTP.
         result = self.fetch_page("http")
@@ -301,8 +291,7 @@ class PriceAgent:
                 result = self._save_known_price(price_kop, extracted.get("title"))
                 if result.get("saved"):
                     return self.finish(
-                        f"Парсер нашел цену {format_price(price_kop)}. "
-                        "Qwen не понадобился: цена уже определена и проверена кодом."
+                        f"Текущая цена: {format_price(price_kop)}."
                     )
                 # Если проверка не прошла (например, сильное изменение), не сохраняем.
                 return self.finish(

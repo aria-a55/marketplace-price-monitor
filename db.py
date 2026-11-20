@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS products (
     external_id     TEXT,                       -- id товара на сайте магазина
     title           TEXT,
     threshold_kop   INTEGER,                    -- порог цены
-    chat_id         INTEGER NOT NULL DEFAULT 0, -- пользователь телеграма, пригодится для бота
+    chat_id         INTEGER NOT NULL DEFAULT 0, -- Telegram chat ID
     is_active       INTEGER NOT NULL DEFAULT 1,
     created_at      TEXT NOT NULL,
     last_checked_at TEXT,
@@ -37,7 +37,7 @@ def now():
 def connect():
     is_new = not os.path.exists(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # чтобы обращаться к полям по имени: row["url"]
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(CREATE_TABLES)
     if is_new:
